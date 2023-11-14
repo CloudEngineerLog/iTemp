@@ -68,3 +68,9 @@ variable "policy_prefixes" {
   type        = list(string)
   default     = [""]
 }
+
+variable "tags" {
+  description = "A map of tags to add to all resources that support tags."
+  type        = map(string)
+  default     = {}
+}
