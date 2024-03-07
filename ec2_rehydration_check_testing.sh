@@ -14,16 +14,37 @@ GOLD_AMI_2="$3"
 # Define the threshold for rehydration in days
 rehydration_threshold=30
 
+# Function to get the maximum length of a column
+get_max_length() {
+    max_length=0
+    while read -r line; do
+        length=${#line}
+        if (( length > max_length )); then
+            max_length=$length
+        fi
+    done
+    echo $max_length
+}
+
 # Step 1: List all EC2 instances in an account and capture their AMI and launch time
 instances=$(aws --profile "$PROFILE" ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,ImageId,LaunchTime]' --output text)
 
-# Prepare the header for the EC2 instance summary table
-header="Instance ID | Current AMI | AMI Age (days) | Launch Time | Compliance Status"
-echo "$header"
+# Calculate the maximum length for each column
+max_id_length=$(echo "$instances" | awk '{print $1}' | get_max_length)
+max_ami_length=$(echo "$instances" | awk '{print $2}' | get_max_length)
+max_launch_time_length=$(echo "$instances" | awk '{print $3}' | get_max_length)
 
-# Prepare the separator line for the header
-header_separator=$(printf '%s' "$header" | sed 's/[^|]/-/g')
-echo "$header_separator"
+# Ensure minimum column widths
+max_id_length=$((max_id_length > 11 ? max_id_length : 11))
+max_ami_length=$((max_ami_length > 10 ? max_ami_length : 10))
+max_launch_time_length=$((max_launch_time_length > 11 ? max_launch_time_length : 11))
+
+# Print table header with dynamic spacing
+header_footer_line=$(printf '+-%-'$max_id_length's-+-%-'$max_ami_length's-+-%-16s-+-%-'$max_launch_time_length's-+-%-17s-+\n' | tr ' ' '-')
+echo "$header_footer_line"
+printf "| %-$(($max_id_length+1))s | %-$(($max_ami_length+1))s | %-17s | %-$(($max_launch_time_length+1))s | %-18s |\n" \
+       "Instance ID" "Current AMI" "AMI Age (days)" "Launch Time" "Compliance Status"
+echo "$header_footer_line"
 
 # Step 2: Iterate through each instance and check AMI dates
 while read -r instance_id ami_id launch_time; do
@@ -48,20 +69,27 @@ while read -r instance_id ami_id launch_time; do
     fi
 
     # Print the summary row for each instance
-    printf "%s | %s | %d | %s | %s\n" \
+    printf "| %-$(($max_id_length+1))s | %-$(($max_ami_length+1))s | %16d | %-$(($max_launch_time_length+1))s | %-18s |\n" \
            "$instance_id" "$ami_name" "$ami_age_days" "$launch_time" "$compliance_status"
-done <<< "$instances" | column -t -s '|'
+done <<< "$instances"
 
-echo "$header_separator"
+# Print table footer with dynamic spacing
+echo "$header_footer_line"
 
 # Function to generate the GOLD AMI summary table
 generate_gold_ami_summary() {
     local gold_ami="$1"
     local gold_amis=$(aws --profile "$PROFILE" ec2 describe-images --filters "Name=name,Values=$gold_ami*" --query 'Images[*].[Name,CreationDate]' --output text | sort -k2 | tail -n 2)
 
-    # Header for the GOLD AMI summary table
-    echo "GOLD AMI ($gold_ami) | Age (days)"
-    echo "---------------------|-----------"
+    # Calculate the maximum length for the AMI name column
+    max_ami_name_length=$(echo "$gold_amis" | awk '{print $1}' | get_max_length)
+    max_ami_name_length=$((max_ami_name_length > 16 ? max_ami_name_length : 16))
+
+    # Print table header with dynamic spacing for the GOLD AMI summary
+    gold_header_footer_line=$(printf '+-%-'$max_ami_name_length's-+-%-11s-+\n' | tr ' ' '-')
+    echo "$gold_header_footer_line"
+    printf "| %-$(($max_ami_name_length+1))s | %-12s |\n" "GOLD AMI ($gold_ami)" "Age (days)"
+    echo "$gold_header_footer_line"
 
     # Iterate through the GOLD AMIs and calculate their age
     while read -r ami_name ami_creation_date; do
@@ -73,10 +101,11 @@ generate_gold_ami_summary() {
         ami_age_days=$(( ($current_date_seconds - $ami_creation_date_seconds) / 86400 ))
 
         # Print the summary row for each GOLD AMI
-        printf "%s | %d\n" "$ami_name" "$ami_age_days"
-    done <<< "$gold_amis" | column -t -s '|'
+        printf "| %-$(($max_ami_name_length+1))s | %11d |\n" "$ami_name" "$ami_age_days"
+    done <<< "$gold_amis"
 
-    echo "---------------------|-----------"
+    # Print table footer with dynamic spacing for the GOLD AMI summary
+    echo "$gold_header_footer_line"
 }
 
 # Generate GOLD AMI summary tables for each provided AMI
