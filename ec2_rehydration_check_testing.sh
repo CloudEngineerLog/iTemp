@@ -17,28 +17,13 @@ rehydration_threshold=30
 # Step 1: List all EC2 instances in an account and capture their AMI and launch time
 instances=$(aws --profile "$PROFILE" ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,ImageId,LaunchTime]' --output text)
 
-# Calculate maximum column widths for dynamic formatting in the EC2 instance summary table
-max_id_width=$(echo "$instances" | awk '{print length($1)}' | sort -nr | head -n1)
-max_ami_width=$(echo "$instances" | awk '{print length($2)}' | sort -nr | head -n1)
-max_ami_age_width=15  # Fixed width for "AMI Age (days)"
-max_launch_time_width=20  # Fixed width for "Launch Time"
-max_compliance_width=15  # Fixed width for "Compliance Status"
+# Prepare the header for the EC2 instance summary table
+header="Instance ID | Current AMI | AMI Age (days) | Launch Time | Compliance Status"
+echo "$header"
 
-# Function to print the table border
-print_border() {
-    printf "+-%-${max_id_width}s-+-%-${max_ami_width}s-+-%-${max_ami_age_width}s-+-%-${max_launch_time_width}s-+-%-${max_compliance_width}s-+\n" \
-           "$(printf '%*s' $max_id_width | tr ' ' '-')" \
-           "$(printf '%*s' $max_ami_width | tr ' ' '-')" \
-           "$(printf '%*s' $max_ami_age_width | tr ' ' '-')" \
-           "$(printf '%*s' $max_launch_time_width | tr ' ' '-')" \
-           "$(printf '%*s' $max_compliance_width | tr ' ' '-')"
-}
-
-# Header for the EC2 instance summary table
-print_border
-printf "| %-${max_id_width}s | %-${max_ami_width}s | %-${max_ami_age_width}s | %-${max_launch_time_width}s | %-${max_compliance_width}s |\n" \
-       "Instance ID" "Current AMI" "AMI Age (days)" "Launch Time" "Compliance Status"
-print_border
+# Prepare the separator line for the header
+header_separator=$(printf '%s' "$header" | sed 's/[^|]/-/g')
+echo "$header_separator"
 
 # Step 2: Iterate through each instance and check AMI dates
 while read -r instance_id ami_id launch_time; do
@@ -63,9 +48,37 @@ while read -r instance_id ami_id launch_time; do
     fi
 
     # Print the summary row for each instance
-    printf "| %-${max_id_width}s | %-${max_ami_width}s | %${max_ami_age_width}d | %-${max_launch_time_width}s | %-${max_compliance_width}s |\n" \
+    printf "%s | %s | %d | %s | %s\n" \
            "$instance_id" "$ami_name" "$ami_age_days" "$launch_time" "$compliance_status"
-done <<< "$instances"
+done <<< "$instances" | column -t -s '|'
 
-# Footer for the EC2 instance summary table
-print_border
+echo "$header_separator"
+
+# Function to generate the GOLD AMI summary table
+generate_gold_ami_summary() {
+    local gold_ami="$1"
+    local gold_amis=$(aws --profile "$PROFILE" ec2 describe-images --filters "Name=name,Values=$gold_ami*" --query 'Images[*].[Name,CreationDate]' --output text | sort -k2 | tail -n 2)
+
+    # Header for the GOLD AMI summary table
+    echo "GOLD AMI ($gold_ami) | Age (days)"
+    echo "---------------------|-----------"
+
+    # Iterate through the GOLD AMIs and calculate their age
+    while read -r ami_name ami_creation_date; do
+        # Convert the AMI creation date to a format that can be used with the 'date' command
+        formatted_ami_creation_date=$(date -d "$ami_creation_date" +%Y-%m-%d)
+
+        # Calculate the age of the AMI
+        ami_creation_date_seconds=$(date -d "$formatted_ami_creation_date" +%s)
+        ami_age_days=$(( ($current_date_seconds - $ami_creation_date_seconds) / 86400 ))
+
+        # Print the summary row for each GOLD AMI
+        printf "%s | %d\n" "$ami_name" "$ami_age_days"
+    done <<< "$gold_amis" | column -t -s '|'
+
+    echo "---------------------|-----------"
+}
+
+# Generate GOLD AMI summary tables for each provided AMI
+generate_gold_ami_summary "$GOLD_AMI_1"
+generate_gold_ami_summary "$GOLD_AMI_2"
