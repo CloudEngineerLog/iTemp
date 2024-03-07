@@ -18,19 +18,22 @@ rehydration_threshold=30
 instances=$(aws --profile "$PROFILE" ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,ImageId,LaunchTime]' --output text)
 
 # Header for the EC2 instance summary table
-printf "+-----------------+----------------------+-----------------------+----------------+-------------------+\n"
-printf "| Instance ID     | Current AMI          | Launch Time           | AMI Age (days) | Compliance Status |\n"
-printf "+-----------------+----------------------+-----------------------+----------------+-------------------+\n"
+printf "+-----------------+----------------------+----------------------+-----------------------+-------------------+\n"
+printf "| Instance ID     | Current AMI          | AMI Age (days)       | Launch Time           | Compliance Status |\n"
+printf "+-----------------+----------------------+----------------------+-----------------------+-------------------+\n"
 
 # Step 2: Iterate through each instance and check AMI dates
 while read -r instance_id ami_id launch_time; do
     # Get the AMI name and creation date for the current instance
     ami_info=$(aws --profile "$PROFILE" ec2 describe-images --image-ids $ami_id --query 'Images[*].[Name,CreationDate]' --output text)
     ami_name=$(echo "$ami_info" | cut -f1)
-    ami_creation_date=$(echo "$ami_info" | cut -f2)
+    ami_creation_date=$(echo "$ami_info" | cut -f2 | awk -F'T' '{print $1}')
+
+    # Convert the AMI creation date to a format that can be used with the 'date' command
+    formatted_ami_creation_date=$(date -d $ami_creation_date +%Y-%m-%d)
 
     # Calculate the age of the current AMI
-    ami_creation_date_seconds=$(date -d $ami_creation_date +%s)
+    ami_creation_date_seconds=$(date -d $formatted_ami_creation_date +%s)
     current_date_seconds=$(date +%s)
     ami_age_days=$(( ($current_date_seconds - $ami_creation_date_seconds) / 86400 ))
 
@@ -42,16 +45,16 @@ while read -r instance_id ami_id launch_time; do
     fi
 
     # Print the summary row for each instance
-    printf "| %-15s | %-20s | %-21s | %-14d | %-17s |\n" "$instance_id" "$ami_name" "$launch_time" "$ami_age_days" "$compliance_status"
+    printf "| %-15s | %-20s | %-20d | %-21s | %-17s |\n" "$instance_id" "$ami_name" "$ami_age_days" "$launch_time" "$compliance_status"
 done <<< "$instances"
 
 # Footer for the EC2 instance summary table
-printf "+-----------------+----------------------+-----------------------+----------------+-------------------+\n"
+printf "+-----------------+----------------------+----------------------+-----------------------+-------------------+\n"
 
 # Function to generate the GOLD AMI summary table
 generate_gold_ami_summary() {
     local gold_ami="$1"
-    local gold_amis=$(aws --profile "$PROFILE" ec2 describe-images --filters "Name=name,Values=$gold_ami*" --query 'Images[*].[Name,CreationDate]' --output text | sort -k2)
+    local gold_amis=$(aws --profile "$PROFILE" ec2 describe-images --filters "Name=name,Values=$gold_ami*" --query 'Images[*].[Name,CreationDate]' --output text | sort -k2 | tail -n 2)
 
     # Header for the GOLD AMI summary table
     printf "\n+----------------------+-----------------------+\n"
@@ -60,8 +63,11 @@ generate_gold_ami_summary() {
 
     # Iterate through the GOLD AMIs and calculate their age
     while read -r ami_name ami_creation_date; do
+        # Convert the AMI creation date to a format that can be used with the 'date' command
+        formatted_ami_creation_date=$(date -d $ami_creation_date +%Y-%m-%d)
+
         # Calculate the age of the AMI
-        ami_creation_date_seconds=$(date -d $ami_creation_date +%s)
+        ami_creation_date_seconds=$(date -d $formatted_ami_creation_date +%s)
         ami_age_days=$(( ($current_date_seconds - $ami_creation_date_seconds) / 86400 ))
 
         # Print the summary row for each GOLD AMI
