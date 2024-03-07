@@ -17,7 +17,7 @@ rehydration_threshold=30
 # Function to get the maximum length of a column
 get_max_length() {
     max_length=0
-    while read -r line; do
+    while IFS= read -r line; do
         length=${#line}
         if (( length > max_length )); then
             max_length=$length
@@ -47,7 +47,11 @@ printf "| %-$(($max_id_length+1))s | %-$(($max_ami_length+1))s | %-17s | %-$(($m
 echo "$header_footer_line"
 
 # Step 2: Iterate through each instance and check AMI dates
-while read -r instance_id ami_id launch_time; do
+while IFS= read -r instance_info; do
+    instance_id=$(echo "$instance_info" | awk '{print $1}')
+    ami_id=$(echo "$instance_info" | awk '{print $2}')
+    launch_time=$(echo "$instance_info" | awk '{print $3}')
+
     # Get the AMI name and creation date for the current instance
     ami_info=$(aws --profile "$PROFILE" ec2 describe-images --image-ids $ami_id --query 'Images[*].[Name,CreationDate]' --output text)
     ami_name=$(echo "$ami_info" | cut -f1)
@@ -92,7 +96,10 @@ generate_gold_ami_summary() {
     echo "$gold_header_footer_line"
 
     # Iterate through the GOLD AMIs and calculate their age
-    while read -r ami_name ami_creation_date; do
+    while IFS= read -r ami_info; do
+        ami_name=$(echo "$ami_info" | awk '{print $1}')
+        ami_creation_date=$(echo "$ami_info" | awk '{print $2}' | awk -F'T' '{print $1}')
+
         # Convert the AMI creation date to a format that can be used with the 'date' command
         formatted_ami_creation_date=$(date -d "$ami_creation_date" +%Y-%m-%d)
 
