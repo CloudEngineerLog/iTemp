@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to set up AWS Health events integration with ServiceNow
+
+Resources:
+  HealthEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: HealthEventToSNSTopicRule
+      Description: EventBridge rule to capture AWS Health events and forward them to an SNS topic
+      EventPattern:
+        source:
+          - "aws.health"
+      State: ENABLED
+      Targets:
+        - Arn:
+            Ref: HealthEventsTopic
+          Id: HealthEventsTopicTarget
+
+  HealthEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: HealthEventsTopic
+
+  HealthEventsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sns:Publish
+            Resource:
+              Ref: HealthEventsTopic
+      Topics:
+        - Ref: HealthEventsTopic
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action: sns:Publish
+                Resource:
+                  Ref: HealthEventsTopic
+
+  HealthEventsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: HealthEventsToServiceNow
+      Handler: index.lambda_handler
+      Role:
+        Fn::GetAtt:
+          - LambdaExecutionRole
+          - Arn
+      Code:
+        ZipFile: |
+          import json
+          import requests
+
+          def lambda_handler(event, context):
+              # Your Lambda function code here
+      Runtime: python3.8
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          SERVICENOW_INSTANCE: 'your_instance'
+          SERVICENOW_USERNAME: 'your_username'
+          SERVICENOW_PASSWORD: 'your_password'
+      Events:
+        HealthEvent:
+          Type: SNS
+          Properties:
+            Topic:
+              Ref: HealthEventsTopic
+
+Outputs:
+  HealthEventsTopicArn:
+    Description: ARN of the SNS topic for health events
+    Value:
+      Ref: HealthEventsTopic
