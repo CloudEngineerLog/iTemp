@@ -1,0 +1,43 @@
+Here’s a sample document for your Cloud Deployment Process for the CloudOps team:
+
+Cloud Deployment Process
+
+Overview
+
+This document outlines the steps involved in the cloud deployment process for the Cloud Operations (CloudOps) team. It is essential to follow these steps to ensure a smooth and secure deployment of features and updates to the production environment.
+
+Deployment Process
+
+Step 1: Create a Release Ticket
+
+	•	A release ticket should be created for the feature or update being deployed. This ticket will serve as the central point of reference for the entire deployment process.
+
+Step 2: Link All Related Stories
+
+	•	All user stories or tasks related to the release should be linked to the release ticket. This ensures that all changes are tracked and accounted for in the release.
+
+Step 3: Update the Release Ticket
+
+	•	The release ticket should be updated with detailed deployment steps and a backout plan in case the deployment needs to be rolled back.
+
+Step 4: Creation of Change Tickets
+
+	•	Change tickets for the production environment will be created by the operations team. The application development (AppDev) team should coordinate with the operations team in advance to ensure these tickets are created timely.
+
+Step 5: QA Deployment and Security Sign-Off
+
+	•	After deployment to the QA environment, obtain sign-off from the security team on the linked story tickets in the release ticket. Additionally, ensure that the Security Impact Assessment (SIA) is signed off.
+
+Step 6: Change Ticket Approvals and PMO Sign-Off
+
+	•	After receiving security sign-off, follow up to obtain approvals for the change tickets and sign-off from the Project Management Office (PMO) on the production release.
+
+Post-Deployment
+
+	•	Once the deployment is completed, ensure that all documentation is updated, and the release ticket is closed with all necessary details and approvals documented.
+
+Conclusion
+
+Following this cloud deployment process will help ensure that deployments are conducted in a structured, secure, and efficient manner. It is crucial for all team members to adhere to these steps to maintain the integrity and reliability of the production environment.
+
+Feel free to customize this document according to your organization’s specific needs and procedures.
